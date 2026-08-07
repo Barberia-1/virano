@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>diag2</title></head><body>
+<pre id="out">arrancandoâ€¦</pre>
+<iframe id="f" src="index.html" style="width:420px;height:820px;border:1px solid #ccc"></iframe>
+<script>
+const log = [];
+function p(m){ log.push(m); document.getElementById('out').textContent = log.join('\n'); }
+window.addEventListener('error', e => p('ERROR PADRE: ' + e.message));
+const esperar = ms => new Promise(r => setTimeout(r, ms));
+
+(async function(){
+  const f = document.getElementById('f');
+  await new Promise(r => f.addEventListener('load', r));
+  const w = f.contentWindow, d = f.contentDocument;
+  w.addEventListener('error', e => p('ERROR APP: ' + e.message + ' @' + (e.filename||'').split('/').pop() + ':' + e.lineno));
+  w.addEventListener('unhandledrejection', e => p('REJECT APP: ' + (e.reason && e.reason.message || e.reason)));
+
+  await esperar(6000);
+  p('estado backend: ' + d.querySelector('#estado-backend').textContent.trim().slice(0, 60));
+
+  // â”€â”€ Crear un grupo desde el formulario real â”€â”€
+  d.querySelector('[data-modo="crear"]').click();
+  d.querySelector('#in-nombre').value = 'Pablo';
+  d.querySelector('#in-grupo').value = 'Los pibes';
+  d.querySelector('#form-entrar').dispatchEvent(new w.Event('submit', {cancelable:true}));
+  await esperar(4000);
+
+  p('pantalla app activa: ' + d.querySelector('#pantalla-app').classList.contains('activa'));
+  p('titulo grupo: ' + d.querySelector('#titulo-grupo').textContent);
+  p('codigo: ' + d.querySelector('#chip-codigo-texto').textContent);
+  p('subtitulo: ' + d.querySelector('#subtitulo-grupo').textContent);
+  p('feed vacio muestra: ' + (d.querySelector('#feed .vacio h3')||{}).textContent);
+
+  // â”€â”€ Ir a la agenda â”€â”€
+  d.querySelector('.nav-item[data-vista="agenda"]').click();
+  await esperar(1000);
+  p('vista agenda visible: ' + !d.querySelector('#vista-agenda').classList.contains('oculto'));
+  p('fab dice: ' + d.querySelector('#fab-texto').textContent);
+  p('agenda vacia: ' + (d.querySelector('#agenda .vacio h3')||{}).textContent);
+
+  // â”€â”€ Agendar una juntada desde la hoja real â”€â”€
+  d.querySelector('#fab').click();
+  await esperar(1500);
+  const hoja = d.querySelector('.velo');
+  p('hoja nueva juntada abierta: ' + !!hoja);
+  if (!hoja) { p('CORTADO'); return; }
+  p('fecha por defecto: ' + d.querySelector('#j-fecha').value + ' ' + d.querySelector('#j-hora').value);
+
+  d.querySelector('#j-titulo').value = 'Asado en lo de Marto';
+  d.querySelector('#j-lugar').value = 'Siempre Viva 742';
+  d.querySelector('#j-consigna').value = 'Camisa obligatoria';
+  d.querySelector('#btn-crear-juntada').click();
+  await esperar(4000);
+
+  const card = d.querySelector('#agenda .juntada');
+  p('tarjeta de juntada creada: ' + !!card);
+  if (card) {
+    p('  titulo: ' + card.querySelector('h3').textContent);
+    p('  taco:   ' + card.querySelector('.taco .dia').textContent + ' ' + card.querySelector('.taco .mes').textContent);
+    p('  meta:   ' + Array.from(card.querySelectorAll('.meta')).map(x=>x.textContent).join(' | '));
+    p('  consigna: ' + (card.querySelector('.consigna')||{}).textContent);
+    p('  progreso: ' + card.querySelector('.progreso-vestimenta .texto').textContent);
+    p('  caritas: ' + card.querySelectorAll('.caritas .avatar').length);
+  }
+  p('separador: ' + (d.querySelector('.separador-agenda')||{}).textContent);
+  p('punto aviso agenda visible: ' + !d.querySelector('#punto-agenda').classList.contains('oculto'));
+  p('subtitulo ahora: ' + d.querySelector('#subtitulo-grupo').textContent);
+
+  // â”€â”€ Abrir el detalle â”€â”€
+  card.click();
+  await esperar(1500);
+  const det = d.querySelector('.velo .hoja');
+  p('detalle abierto: ' + !!det);
+  if (det) {
+    p('  ficha lineas: ' + d.querySelectorAll('#j-det-ficha .linea').length);
+    p('  contador: ' + d.querySelector('#j-det-contador').textContent);
+    p('  pendientes: ' + d.querySelectorAll('.atuendo.pendiente').length);
+    p('  texto pendiente: ' + (d.querySelector('.atuendo.pendiente span:last-child')||{}).textContent);
+    p('  boton: ' + d.querySelector('#btn-mi-atuendo').textContent);
+
+    // Abrir la hoja de subir vestimenta
+    d.querySelector('#btn-mi-atuendo').click();
+    await esperar(1500);
+    p('  hoja vestimenta abierta: ' + !!d.querySelector('#a-paso-elegir'));
+    p('  consigna mostrada: ' + (d.querySelector('#a-consigna')||{}).textContent);
+  }
+
+  // â”€â”€ Menu con integrantes â”€â”€
+  Array.from(d.querySelectorAll('[data-cerrar]')).forEach(b => b.click());
+  await esperar(1500);
+  d.querySelector('#btn-menu').click();
+  await esperar(1500);
+  p('menu integrantes: ' + d.querySelectorAll('#menu-miembros .miembro').length);
+  p('menu codigo: ' + (d.querySelector('#menu-codigo')||{}).value);
+
+  p('LISTO â€” sin errores');
+})();
+</script>
+</body></html>
+

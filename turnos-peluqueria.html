@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>Turnos Peluquería</title>
+<meta name="description" content="Ingresá con código de peluquero o cliente para gestionar y pedir turnos.">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  body { background: var(--fondo); }
+  .contenedor { max-width: 920px; margin: 0 auto; padding: calc(var(--safe-t) + 18px) 20px calc(var(--safe-b) + 28px); }
+  .intro { max-width: 760px; margin: 0 auto 24px; }
+  .intro h1 { margin: 0 0 10px; font-size: 3rem; letter-spacing: -.03em; line-height: 1.05; }
+  .intro p { margin: 0; color: var(--texto-2); font-size: 1.05rem; }
+  .panel { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--r-xl); box-shadow: var(--sombra); padding: 24px; margin-bottom: 24px; }
+  .panel h2 { margin: 0 0 18px; font-size: 1.45rem; }
+  .lista-turnos { display: grid; gap: 14px; }
+  .turno { border-radius: var(--r-lg); background: var(--superficie-2); padding: 18px; border: 1px solid var(--borde); }
+  .turno-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .turno-header strong { font-size: 1rem; }
+  .turno-meta { display: grid; gap: 8px; font-size: 0.95rem; color: var(--texto-2); }
+  .turno-meta span { display: inline-flex; gap: 6px; align-items: center; }
+  .turno-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; background: var(--superficie); border: 1px solid var(--borde); }
+  .nota { color: var(--texto-3); margin-top: 4px; font-size: 0.95rem; }
+  .section-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oculto { display: none !important; }
+  .session-bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 18px; }
+  .session-bar strong { font-size: 0.95rem; color: var(--texto-2); }
+  @media (max-width: 720px) { .section-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="contenedor">
+  <section class="intro">
+    <h1>Turnos Peluquería</h1>
+    <p>Entrá con código para usar la misma página como peluquero o como cliente.</p>
+  </section>
+
+  <section id="panel-login" class="panel">
+    <h2>Ingreso</h2>
+    <form id="form-login" novalidate>
+      <div class="campo">
+        <label for="codigo-acceso">Código</label>
+        <input id="codigo-acceso" type="text" placeholder="PELUQUERO o CLIENTE" maxlength="20" autocomplete="off" required>
+      </div>
+      <button type="submit" class="btn btn-principal">Entrar</button>
+    </form>
+    <p class="nota">Códigos: <strong>PELUQUERO</strong> para el peluquero, <strong>CLIENTE</strong> para solicitar corte.</p>
+  </section>
+
+  <section id="panel-cliente" class="panel oculto">
+    <div class="session-bar">
+      <strong>Modo cliente</strong>
+      <button id="btn-logout-cliente" class="btn btn-texto" type="button">Cerrar sesión</button>
+    </div>
+    <h2>Pedir un corte</h2>
+    <form id="form-solicitud" novalidate>
+      <div class="campo">
+        <label for="nombre-solicitud">Tu nombre</label>
+        <input id="nombre-solicitud" type="text" placeholder="Martín" maxlength="60" required>
+      </div>
+      <div class="cf-turnstile" data-theme="light" data-action="solicitar-turno"></div>
+      <button type="submit" class="btn btn-principal">Solicitar corte</button>
+    </form>
+    <p class="nota">Solo tu nombre, el peluquero luego te asigna día y hora.</p>
+  </section>
+
+  <section id="panel-peluquero" class="panel oculto">
+    <div class="session-bar">
+      <strong>Modo peluquero</strong>
+      <button id="btn-logout-peluquero" class="btn btn-texto" type="button">Cerrar sesión</button>
+    </div>
+    <h2>Panel del peluquero</h2>
+    <p id="estado-backend" class="nota">Conectando con Supabase...</p>
+    <div id="lista-pendientes" class="lista-turnos"></div>
+    <p id="pendientes-vacio" class="vacío">No hay solicitudes pendientes.</p>
+  </section>
+
+  <section id="panel-otros" class="panel section-grid oculto">
+    <div>
+      <h2>Turnos confirmados</h2>
+      <div id="lista-confirmados" class="lista-turnos"></div>
+      <p id="confirmados-vacio" class="vacío">No hay turnos confirmados aún.</p>
+    </div>
+    <div>
+      <h2>Cortes realizados</h2>
+      <div id="contador-clientes" class="contador"></div>
+      <p id="contador-vacio" class="vacío">Aquí aparece cuántas veces se cortó el pelo cada cliente.</p>
+    </div>
+  </section>
+</div>
+<script src="js/config.js"></script>
+<script src="js/captcha.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="js/turnos-peluqueria.js"></script>
+</body>
+</html>

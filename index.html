@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>Juntada — el álbum y la agenda del grupo</title>
+<meta name="description" content="Página del grupo: agendá las juntadas, subí tu vestimenta completa y compartí las fotos y videos de cada una.">
+
+<meta name="theme-color" content="#ff7a59" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14101a" media="(prefers-color-scheme: dark)">
+
+<meta property="og:title" content="Juntada — el álbum y la agenda del grupo">
+<meta property="og:description" content="Agendá las juntadas, subí tu vestimenta y compartí las fotos.">
+<meta property="og:type" content="website">
+
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ══════════════ Pantalla: entrar ══════════════ -->
+<section id="pantalla-entrar" class="pantalla activa">
+  <div class="entrar-caja">
+
+    <div class="marca">
+      <img src="icons/icon-192.png" alt="" width="84" height="84">
+      <h1>Juntada</h1>
+      <p>La página privada de tu grupo.<br>Agendá la próxima, mostrá tu vestimenta y guardá las fotos.</p>
+    </div>
+
+    <div class="tarjeta-entrar">
+      <div class="pestanias" role="tablist">
+        <button class="pestania activa" role="tab" data-modo="entrar" aria-selected="true">Entrar a un grupo</button>
+        <button class="pestania" role="tab" data-modo="crear" aria-selected="false">Crear uno nuevo</button>
+      </div>
+
+      <form id="form-entrar" novalidate>
+        <div class="campo">
+          <label for="in-nombre">Tu nombre</label>
+          <input id="in-nombre" type="text" placeholder="Pablo" autocomplete="nickname"
+                 maxlength="24" enterkeyhint="next" required>
+        </div>
+
+        <div class="campo" id="campo-codigo">
+          <label for="in-codigo">Código del grupo</label>
+          <input id="in-codigo" class="input-codigo" type="text" placeholder="ABC123"
+                 maxlength="6" autocapitalize="characters" autocomplete="off"
+                 spellcheck="false" enterkeyhint="go">
+          <p class="ayuda">Pediles el código a quien creó el grupo.</p>
+        </div>
+
+        <div class="campo oculto" id="campo-nombre-grupo">
+          <label for="in-grupo">Nombre del grupo</label>
+          <input id="in-grupo" type="text" placeholder="Los pibes" maxlength="30" enterkeyhint="go">
+          <p class="ayuda">Te vamos a dar un código para que invites a los demás.</p>
+        </div>
+
+        <button type="submit" class="btn btn-principal" id="btn-entrar">Entrar</button>
+      </form>
+    </div>
+
+    <p class="pie-entrar"><span id="estado-backend">Comprobando dónde se guardan las fotos…</span></p>
+  </div>
+</section>
+
+<!-- ══════════════ Pantalla principal ══════════════ -->
+<section id="pantalla-app" class="pantalla">
+
+  <header class="barra">
+    <div class="barra-fila">
+      <div class="avatar" id="mi-avatar"></div>
+      <div class="barra-titulo">
+        <h2 id="titulo-grupo">Grupo</h2>
+        <div class="sub" id="subtitulo-grupo">—</div>
+      </div>
+      <button class="chip-codigo" id="btn-invitar" title="Compartir el código para invitar">
+        <span>🔗</span><span id="chip-codigo-texto">------</span>
+      </button>
+      <button class="cerrar" id="btn-menu" aria-label="Menú">⋯</button>
+    </div>
+  </header>
+
+  <!-- ── Vista: momentos ── -->
+  <main class="contenido" id="vista-momentos">
+    <div id="banner-demo" class="banner oculto">
+      <span class="emoji">📱</span>
+      <span><b>Modo prueba:</b> las fotos se guardan solo en este dispositivo. Para que tus amigos las vean hay que conectar Supabase (está en el README).</span>
+    </div>
+    <div id="feed"></div>
+  </main>
+
+  <!-- ── Vista: agenda ── -->
+  <main class="contenido oculto" id="vista-agenda">
+    <div id="agenda"></div>
+  </main>
+
+  <button class="fab" id="fab"><span class="fab-mas">＋</span> <span id="fab-texto">Subir</span></button>
+
+  <nav class="nav-abajo" role="tablist">
+    <button class="nav-item activa" data-vista="momentos" role="tab" aria-selected="true">
+      <span class="ico">🖼️</span><span>Momentos</span>
+    </button>
+    <button class="nav-item" data-vista="agenda" role="tab" aria-selected="false">
+      <span class="ico">📅</span><span>Agenda</span>
+      <span class="punto oculto" id="punto-agenda"></span>
+    </button>
+  </nav>
+</section>
+
+<!-- ══════════════ Avisos flotantes ══════════════ -->
+<div id="avisos" aria-live="polite"></div>
+
+<!-- ══════════════ Plantillas ══════════════ -->
+
+<template id="tpl-hoja-subir">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Subir fotos o videos">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3>Subir al grupo</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="hoja-cuerpo">
+        <div id="paso-elegir">
+          <div class="opciones-origen">
+            <button class="origen" data-origen="camara">
+              <span class="emoji">📸</span><span>Sacar una foto</span>
+            </button>
+            <button class="origen" data-origen="galeria">
+              <span class="emoji">🖼️</span><span>Desde la galería</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="paso-previa" class="oculto">
+          <div class="previas" id="previas"></div>
+          <div class="campo">
+            <label for="in-epigrafe">Contá algo (opcional)</label>
+            <textarea id="in-epigrafe" placeholder="Asado del sábado 🔥" maxlength="280"></textarea>
+          </div>
+        </div>
+
+        <div id="paso-subiendo" class="oculto">
+          <div class="progreso"><i id="barra-progreso"></i></div>
+          <p class="progreso-texto" id="texto-progreso">Preparando…</p>
+        </div>
+      </div>
+
+      <div class="hoja-pie oculto" id="pie-subir">
+        <button class="btn btn-principal" id="btn-publicar">Publicar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-nueva-juntada">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Nueva juntada">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3>Nueva juntada</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="hoja-cuerpo">
+        <div class="campo">
+          <label for="j-titulo">¿Qué es?</label>
+          <input id="j-titulo" type="text" placeholder="Asado en lo de Marto" maxlength="60">
+        </div>
+        <div class="dos-columnas">
+          <div class="campo">
+            <label for="j-fecha">Día</label>
+            <input id="j-fecha" type="date">
+          </div>
+          <div class="campo">
+            <label for="j-hora">Hora</label>
+            <input id="j-hora" type="time" value="21:00">
+          </div>
+        </div>
+        <div class="campo">
+          <label for="j-lugar">Dónde (opcional)</label>
+          <input id="j-lugar" type="text" placeholder="Av. Siempre Viva 742" maxlength="80">
+        </div>
+        <div class="campo">
+          <label for="j-consigna">Consigna de vestimenta (opcional)</label>
+          <input id="j-consigna" type="text" placeholder="Camisa obligatoria 👔" maxlength="140">
+          <p class="ayuda">Igual todos tienen que subir la foto de su vestimenta completa: eso ya viene puesto.</p>
+        </div>
+      </div>
+
+      <div class="hoja-pie">
+        <button class="btn btn-principal" id="btn-crear-juntada">Agendar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-juntada">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Detalle de la juntada">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3 id="j-det-titulo">Juntada</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="hoja-cuerpo">
+        <div class="ficha" id="j-det-ficha"></div>
+        <h4 class="titulo-seccion">
+          <span>👗 Vestimenta del grupo</span>
+          <span class="contador" id="j-det-contador"></span>
+        </h4>
+        <div class="grilla-atuendos" id="j-det-atuendos"></div>
+      </div>
+
+      <div class="hoja-pie">
+        <button class="btn btn-principal" id="btn-mi-atuendo">📸 Subir mi vestimenta</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-atuendo">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Subir tu vestimenta">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3>Tu vestimenta</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="hoja-cuerpo">
+        <p class="nota-consigna" id="a-consigna"></p>
+
+        <div id="a-paso-elegir">
+          <div class="opciones-origen">
+            <button class="origen" data-origen="camara">
+              <span class="emoji">🤳</span><span>Sacar la foto</span>
+            </button>
+            <button class="origen" data-origen="galeria">
+              <span class="emoji">🖼️</span><span>Desde la galería</span>
+            </button>
+          </div>
+          <p class="ayuda" style="text-align:center;margin-top:14px">
+            Que se te vea de pies a cabeza: zapatillas incluidas.
+          </p>
+        </div>
+
+        <div id="a-paso-previa" class="oculto">
+          <div class="previa-alta" id="a-previa"></div>
+          <div class="campo" style="margin-top:16px">
+            <label for="a-nota">Nota (opcional)</label>
+            <input id="a-nota" type="text" placeholder="Camisa nueva estrenando 😎" maxlength="140">
+          </div>
+          <button class="btn btn-suave" id="a-cambiar" style="margin-top:6px">Elegir otra foto</button>
+        </div>
+
+        <div id="a-paso-subiendo" class="oculto">
+          <div class="progreso"><i id="a-barra"></i></div>
+          <p class="progreso-texto" id="a-texto">Subiendo…</p>
+        </div>
+      </div>
+
+      <div class="hoja-pie oculto" id="a-pie">
+        <button class="btn btn-principal" id="a-confirmar">Listo, subir</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-comentarios">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Comentarios">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3>Comentarios</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+      <div class="hoja-cuerpo" id="lista-comentarios"></div>
+      <div class="hoja-pie">
+        <div class="fila-comentar">
+          <textarea id="in-comentario" rows="1" placeholder="Escribí algo…" maxlength="500"></textarea>
+          <button class="enviar" id="btn-comentar" aria-label="Enviar" disabled>➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-emojis">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Elegí una reacción">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3>Reaccionar</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+      <div class="hoja-cuerpo">
+        <div class="emojis" id="grilla-emojis"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-hoja-menu">
+  <div class="velo" data-cerrar-velo>
+    <div class="hoja" role="dialog" aria-modal="true" aria-label="Menú">
+      <div class="hoja-agarre"></div>
+      <div class="hoja-cabecera">
+        <h3 id="menu-titulo">Grupo</h3>
+        <button class="cerrar" data-cerrar aria-label="Cerrar">✕</button>
+      </div>
+      <div class="hoja-cuerpo">
+        <div class="campo">
+          <label>Código para invitar</label>
+          <input id="menu-codigo" class="input-codigo" type="text" readonly>
+          <p class="ayuda">Compartilo con tus amigos para que entren a la misma página.</p>
+        </div>
+        <button class="btn btn-suave" id="btn-copiar" style="margin-bottom:18px">📋 Copiar el código</button>
+
+        <h4 class="titulo-seccion"><span>👥 Integrantes</span><span class="contador" id="menu-cuenta"></span></h4>
+        <div id="menu-miembros" class="lista-miembros"></div>
+
+        <button class="btn btn-suave btn-peligro" id="btn-salir" style="margin-top:18px">Salir del grupo</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-visor">
+  <div class="visor" role="dialog" aria-modal="true" aria-label="Ver">
+    <a class="visor-descargar" id="visor-descargar" download title="Descargar">⤓</a>
+    <button class="visor-cerrar" data-cerrar aria-label="Cerrar">✕</button>
+    <div class="visor-media" id="visor-media"></div>
+    <div class="visor-pie" id="visor-pie"></div>
+  </div>
+</template>
+
+<!-- Inputs de archivo ocultos. El de cámara abre directo la cámara del celular. -->
+<input type="file" id="file-camara" class="sr" accept="image/*,video/*" capture="environment">
+<input type="file" id="file-galeria" class="sr" accept="image/*,video/*" multiple>
+<input type="file" id="file-atuendo-camara" class="sr" accept="image/*" capture="environment">
+<input type="file" id="file-atuendo-galeria" class="sr" accept="image/*">
+
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/media.js"></script>
+<script src="js/store-local.js"></script>
+<script src="js/store-supabase.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

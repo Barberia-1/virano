@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>diag</title></head><body>
+<div id="avisos"></div>
+<pre id="out">arrancando…</pre>
+<script>
+const log = [];
+function p(m){ log.push(m); document.getElementById('out').textContent = log.join('\n'); }
+window.addEventListener('error', e => p('ERROR: ' + e.message + ' @ ' + (e.filename||'').split('/').pop() + ':' + e.lineno));
+window.addEventListener('unhandledrejection', e => p('REJECT: ' + (e.reason && e.reason.message || e.reason)));
+</script>
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/media.js"></script>
+<script src="js/store-local.js"></script>
+<script src="js/store-supabase.js"></script>
+<script>
+(async function(){
+  p('CONFIG: ' + (window.CONFIG ? 'ok' : 'FALTA'));
+  p('U: ' + (window.U ? 'ok' : 'FALTA'));
+  p('Media: ' + (window.Media ? 'ok' : 'FALTA'));
+  p('StoreLocal: ' + (window.StoreLocal ? 'ok' : 'FALTA'));
+  p('StoreSupabase: ' + (window.StoreSupabase ? 'ok' : 'FALTA'));
+  p('indexedDB disponible: ' + (typeof indexedDB));
+  try {
+    await window.StoreLocal.init();
+    p('StoreLocal.init: ok');
+    const g = await window.StoreLocal.crearGrupo({ nombre: 'Test' });
+    p('crearGrupo: ok ' + g.codigo);
+    const yo = { id: 'u1', nombre: 'Pablo Test' };
+    await window.StoreLocal.registrarMiembro({ grupoId: g.id, autor: yo });
+    p('registrarMiembro: ok');
+    const j = await window.StoreLocal.crearJuntada({ grupoId: g.id, titulo: 'Asado', fecha: new Date(Date.now()+86400000).toISOString(), lugar: 'Casa', consigna: 'Camisa', autor: yo });
+    p('crearJuntada: ok');
+    p('listarJuntadas: ' + (await window.StoreLocal.listarJuntadas(g.id)).length);
+    p('listarMiembros: ' + (await window.StoreLocal.listarMiembros(g.id)).length);
+    p('listarAtuendos: ' + (await window.StoreLocal.listarAtuendos(g.id)).length);
+    p('listarPublicaciones: ' + (await window.StoreLocal.listarPublicaciones(g.id)).length);
+    p('contarComentarios: ok');
+    // Guardar un atuendo con un blob sintético
+    const cv = document.createElement('canvas'); cv.width = 60; cv.height = 80;
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.8));
+    const a = await window.StoreLocal.guardarAtuendo({ grupoId: g.id, juntadaId: j.id, autor: yo,
+      procesado: { kind:'image', media: blob, thumb: blob, mediaExt:'jpg', mediaTipo:'image/jpeg', w:60, h:80, pesoFinal: blob.size } });
+    p('guardarAtuendo: ok');
+    const u = await window.StoreLocal.urlMedia(a);
+    p('urlMedia atuendo: ' + (u.media ? 'ok' : 'NULL'));
+    p('LISTO — sin errores');
+  } catch (e) { p('EXCEPCION: ' + e.message); }
+})();
+</script>
+</body></html>
