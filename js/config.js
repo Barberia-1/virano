@@ -13,8 +13,9 @@
    -------------------------------------------------------------------------- */
 
 window.CONFIG = {
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_URL: 'https://zwmogvchdfyklwozhiwu.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_ASGdb3eHIebX3TXB-ueIjA_xzSWIo5h',
+  PELUQUERO_EMAIL: 'gerolbh@gmail.com',
 
   /* Ajustes que podés cambiar si querés */
   BUCKET: 'media',                 // nombre del bucket de Storage en Supabase

@@ -2,6 +2,11 @@
   'use strict';
 
   const STORAGE_KEY = 'peluqueria-turnos';
+  const supabaseConfigurado = Boolean(window.CONFIG && window.CONFIG.SUPABASE_URL && window.CONFIG.SUPABASE_ANON_KEY && window.supabase);
+  const db = supabaseConfigurado
+    ? window.supabase.createClient(window.CONFIG.SUPABASE_URL, window.CONFIG.SUPABASE_ANON_KEY)
+    : null;
+  let canalTurnos = null;
   const form = document.getElementById('form-turno');
   const listaPendientes = document.getElementById('lista-pendientes');
   const listaConfirmados = document.getElementById('lista-confirmados');
@@ -202,7 +207,14 @@
     });
   }
 
-  function cargarTurnos() {
+  async function cargarTurnos() {
+    if (db && role === 'barbero') {
+      const resultado = await db.from('peluqueria_turnos').select('*').order('creado', { ascending: true });
+      if (resultado.error) throw resultado.error;
+      turnos = (resultado.data || []).map(desdeFilaSupabase);
+      render();
+      return;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       turnos = raw ? JSON.parse(raw) : [];
@@ -214,6 +226,53 @@
 
   function guardarTurnos() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(turnos));
+  }
+
+  function aFilaSupabase(turno) {
+    return {
+      id: String(turno.id), cliente: turno.cliente, telefono: turno.telefono || '',
+      servicio: turno.servicio, comentario: turno.comentario || '', precio: Number(turno.precio) || 0,
+      estado: turno.estado, dia: turno.dia || '', fecha: turno.fecha || '', hora: turno.hora || '',
+      fotos: turno.fotos || [], creado: turno.creado,
+      confirmado_fecha: turno.confirmadoFecha || null
+    };
+  }
+
+  function desdeFilaSupabase(fila) {
+    return {
+      id: fila.id, cliente: fila.cliente, telefono: fila.telefono || '', servicio: fila.servicio,
+      comentario: fila.comentario || '', precio: Number(fila.precio) || 0, estado: fila.estado,
+      dia: fila.dia || '', fecha: fila.fecha || '', hora: fila.hora || '', fotos: fila.fotos || [],
+      creado: fila.creado, confirmadoFecha: fila.confirmado_fecha || null
+    };
+  }
+
+  async function guardarTurnoRemoto(turno, esNuevo) {
+    if (!db) { guardarTurnos(); return; }
+    const consulta = esNuevo
+      ? db.from('peluqueria_turnos').insert(aFilaSupabase(turno))
+      : db.from('peluqueria_turnos').update(aFilaSupabase(turno)).eq('id', turno.id);
+    const resultado = await consulta;
+    if (resultado.error) throw resultado.error;
+  }
+
+  async function borrarTurnoRemoto(id) {
+    if (!db) { guardarTurnos(); return; }
+    const resultado = await db.from('peluqueria_turnos').delete().eq('id', id);
+    if (resultado.error) throw resultado.error;
+  }
+
+  function activarTiempoReal() {
+    if (!db || canalTurnos) return;
+    canalTurnos = db.channel('agenda-virano')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'peluqueria_turnos' }, function () {
+        cargarTurnos().catch(function (error) { console.error('No se pudo actualizar la agenda:', error); });
+      }).subscribe();
+  }
+
+  function detenerTiempoReal() {
+    if (db && canalTurnos) db.removeChannel(canalTurnos);
+    canalTurnos = null;
   }
 
   function crearTurno(datos) {
@@ -528,7 +587,7 @@
     }
   }
 
-  function asignarFechaYConfirmar(id) {
+  async function asignarFechaYConfirmar(id) {
     const turno = turnos.find(t => t.id === id);
     if (!turno) return;
 
@@ -560,7 +619,12 @@
     turno.precio = precioNum;
     turno.estado = 'confirmado';
     turno.confirmadoFecha = new Date().toISOString();
-    guardarTurnos();
+    try {
+      await guardarTurnoRemoto(turno, false);
+    } catch (error) {
+      alert('No se pudo guardar el turno: ' + error.message);
+      return;
+    }
     render();
 
     if (turno.telefono && turno.telefono.trim()) {
@@ -615,12 +679,16 @@
     const file = event.target.files[0];
     if (!file || !fotoTurnoSeleccionado) return;
     const lector = new FileReader();
-    lector.onload = function () {
+    lector.onload = async function () {
       const turno = turnos.find(function (t) { return t.id === fotoTurnoSeleccionado; });
       if (!turno) return;
       turno.fotos = turno.fotos || [];
       turno.fotos.push(lector.result);
-      guardarTurnos();
+      try {
+        await guardarTurnoRemoto(turno, false);
+      } catch (error) {
+        alert('No se pudo guardar la foto: ' + error.message);
+      }
       render();
       fotoTurnoSeleccionado = null;
     };
@@ -631,17 +699,26 @@
     btnCerrarClienteDetalle.addEventListener('click', cerrarDetalleCliente);
   }
 
-  function marcarRealizado(id) {
+  async function marcarRealizado(id) {
     const turno = turnos.find(function (t) { return t.id === id; });
     if (!turno) return;
     turno.estado = 'realizado';
-    guardarTurnos();
+    try {
+      await guardarTurnoRemoto(turno, false);
+    } catch (error) {
+      alert('No se pudo actualizar el turno: ' + error.message);
+    }
     render();
   }
 
-  function eliminarTurno(id) {
+  async function eliminarTurno(id) {
     turnos = turnos.filter(t => t.id !== id);
-    guardarTurnos();
+    try {
+      await borrarTurnoRemoto(id);
+    } catch (error) {
+      alert('No se pudo eliminar el turno: ' + error.message);
+      await cargarTurnos();
+    }
     render();
   }
 
@@ -713,21 +790,22 @@
     boton.disabled = true;
     modalAccesoError.textContent = '';
     try {
-      const respuesta = await fetch('/api/peluquero/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: codigo })
+      if (!db) throw new Error('Supabase no está configurado.');
+      const resultado = await db.auth.signInWithPassword({
+        email: window.CONFIG.PELUQUERO_EMAIL,
+        password: codigo
       });
-      const resultado = await respuesta.json().catch(function () { return {}; });
-      if (!respuesta.ok || !resultado.authenticated) {
-        modalAccesoError.textContent = resultado.message || 'Código incorrecto.';
+      if (resultado.error || !resultado.data.session) {
+        modalAccesoError.textContent = 'Código incorrecto.';
         inputCodigoPeluquero.select();
         return;
       }
       cerrarModalAcceso();
       mostrarPanel('barbero');
+      activarTiempoReal();
+      await cargarTurnos();
     } catch (error) {
-      modalAccesoError.textContent = 'No se pudo validar el acceso. Abrí la página con servidor.cmd.';
+      modalAccesoError.textContent = 'No se pudo validar el acceso. Revisá tu conexión.';
     } finally {
       boton.disabled = false;
     }
@@ -736,8 +814,10 @@
   btnCerrarSesion.addEventListener('click', async function () {
     btnCerrarSesion.disabled = true;
     try {
-      await fetch('/api/peluquero/logout', { method: 'POST' });
+      if (db) await db.auth.signOut();
     } finally {
+      detenerTiempoReal();
+      turnos = [];
       btnCerrarSesion.disabled = false;
       mostrarPanel('cliente');
     }
@@ -755,7 +835,7 @@
     ultimoNombre.select();
   });
 
-  formConfiguracion.addEventListener('submit', function (event) {
+  formConfiguracion.addEventListener('submit', async function (event) {
     event.preventDefault();
     const precioCorte = Number(configPrecioCorte.value);
     const precioCeja = Number(configPrecioCeja.value);
@@ -782,6 +862,14 @@
 
     configuracion = { precioCorte, precioCeja, promoTitulo, promoCorte, promoCeja, promocionesExtra };
     localStorage.setItem(CONFIG_KEY, JSON.stringify(configuracion));
+    if (db) {
+      const resultado = await db.from('peluqueria_config').upsert({ id: 1, datos: configuracion, actualizado: new Date().toISOString() });
+      if (resultado.error) {
+        configuracionMensaje.style.color = 'var(--danger)';
+        configuracionMensaje.textContent = 'No se pudieron guardar los cambios: ' + resultado.error.message;
+        return;
+      }
+    }
     aplicarConfiguracionVisual();
     configuracionMensaje.style.color = 'var(--success)';
     configuracionMensaje.textContent = 'Cambios guardados.';
@@ -807,31 +895,43 @@
 
     const botonEnviar = form.querySelector('button[type="submit"]');
     botonEnviar.disabled = true;
+    const nuevo = crearTurno({ cliente, telefono, dia: '', hora: '', servicio, comentario });
     try {
-      await window.Captcha.verificar(form);
+      await guardarTurnoRemoto(nuevo, true);
+      if (!db) {
+        turnos.push(nuevo);
+        guardarTurnos();
+        render();
+      }
     } catch (error) {
-      alert(error.message || error);
+      alert('No se pudo enviar la solicitud: ' + error.message);
       botonEnviar.disabled = false;
       return;
     }
-
-    const nuevo = crearTurno({ cliente, telefono, dia: '', hora: '', servicio, comentario });
-    turnos.push(nuevo);
-    guardarTurnos();
-    render();
     form.reset();
-    if (window.turnstile) window.turnstile.reset(form.querySelector('.cf-turnstile'));
     botonEnviar.disabled = false;
     document.getElementById('cliente-nombre').focus();
   });
 
   async function iniciar() {
-    cargarTurnos();
+    if (!db) await cargarTurnos();
+    if (db) {
+      const configRemota = await db.from('peluqueria_config').select('datos').eq('id', 1).maybeSingle();
+      if (!configRemota.error && configRemota.data && configRemota.data.datos) {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(configRemota.data.datos));
+        configuracion = cargarConfiguracion();
+      }
+    }
     aplicarConfiguracionVisual();
     try {
-      const respuesta = await fetch('/api/peluquero/session', { cache: 'no-store' });
-      const sesion = await respuesta.json();
-      mostrarPanel(sesion.authenticated ? 'barbero' : 'cliente');
+      if (!db) { mostrarPanel('cliente'); return; }
+      const resultado = await db.auth.getSession();
+      const autenticado = Boolean(resultado.data.session);
+      mostrarPanel(autenticado ? 'barbero' : 'cliente');
+      if (autenticado) {
+        activarTiempoReal();
+        await cargarTurnos();
+      }
     } catch (error) {
       mostrarPanel('cliente');
     }
